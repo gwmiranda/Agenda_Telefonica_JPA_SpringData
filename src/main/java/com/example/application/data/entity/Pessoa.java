@@ -1,37 +1,47 @@
 package com.example.application.data.entity;
 
-import com.example.application.data.AbstractEntity;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
-import javax.persistence.Entity;
+import javax.persistence.*;
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
-public class Pessoa extends AbstractEntity {
+public class Pessoa {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private java.lang.Integer id;
     private String nome;
     private String sobrenome;
-    private LocalDate data_nascimento;
-    private String contato;
     private String parentesco;
+    private LocalDate dataNascimento;
+    @ElementCollection
+    @CollectionTable(name = "contato", joinColumns = @JoinColumn(name = "pessoa_id"))
+    @Fetch( FetchMode.JOIN)
+    private List<Contato> contatos;
 
-    public Pessoa() {
-    }
+    public Pessoa(){}
 
-    public Pessoa(String nome, String sobrenome, LocalDate data_nascimento, String contato, String parentesco) {
+    public Pessoa(java.lang.Integer id, String nome, String sobrenome, String parentesco, LocalDate dataNascimento, List<Contato> contatos) {
+        this.id = id;
         this.nome = nome;
         this.sobrenome = sobrenome;
-        this.data_nascimento = data_nascimento;
-        this.contato = contato;
         this.parentesco = parentesco;
+        this.dataNascimento = dataNascimento;
+        this.contatos = contatos;
     }
 
-
+    public java.lang.Integer getId() {
+        return id;
+    }
 
     public String getNome() {
         return nome;
     }
 
-    public void  setNome(String nome) {
+    public void setNome(String nome) {
         this.nome = nome;
     }
 
@@ -43,22 +53,6 @@ public class Pessoa extends AbstractEntity {
         this.sobrenome = sobrenome;
     }
 
-    public LocalDate getData_nascimento() {
-        return data_nascimento;
-    }
-
-    public void setData_nascimento(LocalDate data_nascimento) {
-        this.data_nascimento = data_nascimento;
-    }
-
-    public String getContato() {
-        return contato;
-    }
-
-    public void setContato(String contato) {
-        this.contato = contato;
-    }
-
     public String getParentesco() {
         return parentesco;
     }
@@ -67,12 +61,20 @@ public class Pessoa extends AbstractEntity {
         this.parentesco = parentesco;
     }
 
-    public void mostraPessoa(){
-        System.out.println("ID : " +getId());
-        System.out.println("Nome : " +getNome());
-        System.out.println("Sobrenome : " +getSobrenome());
-        System.out.println("Nascimento : " +getData_nascimento());
-        System.out.println("Parentesco : " +getParentesco());
+    public LocalDate getDataNascimento() {
+        return dataNascimento;
+    }
+
+    public void setDataNascimento(LocalDate dataNascimento) {
+        this.dataNascimento = dataNascimento;
+    }
+
+    public List<Contato> getContato() {
+        return contatos;
+    }
+
+    public void setContato(List<Contato> contatos) {
+        this.contatos = contatos;
     }
 
 }

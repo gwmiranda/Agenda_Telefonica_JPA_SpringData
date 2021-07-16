@@ -1,24 +1,46 @@
 package com.example.application.data.service;
 
 import com.example.application.data.entity.Pessoa;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.application.data.repository.PessoaRepository;
 import org.springframework.stereotype.Service;
-import org.vaadin.artur.helpers.CrudService;
-import java.time.LocalDate;
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
-public class PessoaService extends CrudService<Pessoa, Integer> {
+public class PessoaService{
 
-    private PessoaRepository repository;
+    private PessoaRepository pessoaRepository;
 
-    public PessoaService(@Autowired PessoaRepository repository) {
-        this.repository = repository;
+    public PessoaService(PessoaRepository pessoaRepository) { this.pessoaRepository = pessoaRepository; }
+
+    public boolean salvar(Pessoa pessoa){
+        try {
+            pessoaRepository.save(pessoa);
+            return true;
+        }catch (Exception ex){
+            return false;
+        }
     }
 
-    @Override
-    protected PessoaRepository getRepository() {
-        return repository;
+    public boolean deletar(Pessoa pessoa){
+        try {
+            pessoaRepository.deleteById(pessoa.getId());
+            return true;
+        }catch (Exception ex){
+            System.out.println(ex.getMessage());
+            return false;
+        }
     }
 
+    public List<Pessoa> listarPessoas() {
+        List<Pessoa> pessoas = (List<Pessoa>) pessoaRepository.findAll();
+        return pessoas;
+    }
+
+    public Pessoa getPessoaID(java.lang.Integer id){
+        Optional<Pessoa>  pessoaOptional = pessoaRepository.findById(id);
+        Pessoa pessoa = pessoaOptional.get();
+        return pessoa;
+    }
 }

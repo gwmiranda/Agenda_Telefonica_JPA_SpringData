@@ -1,43 +1,36 @@
 package com.example.application.views.agendatelefônica;
 
-import com.example.application.data.DAO.PessoaDao;
+import com.example.application.data.entity.Contato;
 import com.example.application.data.entity.Pessoa;
-import com.vaadin.flow.component.*;
+import com.example.application.data.service.PessoaService;
+import com.example.application.views.main.MainView;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.HasStyle;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-        import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.BeanValidationBinder;
 import com.vaadin.flow.data.binder.ValidationException;
-import com.vaadin.flow.data.converter.Converter;
-import com.vaadin.flow.data.validator.EmailValidator;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeEnterObserver;
+import com.vaadin.flow.data.converter.StringToIntegerConverter;
+import com.vaadin.flow.router.*;
 
-
-import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.PageTitle;
-import com.example.application.views.main.MainView;
-import com.vaadin.flow.router.RouteAlias;
-import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.component.datepicker.DatePicker;
-
-import javax.persistence.criteria.CriteriaBuilder;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -53,22 +46,23 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
 
     private TextField nome;
     private TextField sobrenome;
-    private DatePicker data_nascimento;
-    private TextField contato;
+    private DatePicker dataNascimento;
     private TextField parentesco;
 
     private Button cancel = new Button("Cancel");
     private Button save = new Button("Save");
     private Button delete = new Button("Delete");
 
-    private BeanValidationBinder<Pessoa> binder;
-
-    private Pessoa pessoa;
-
+    private BeanValidationBinder<Pessoa> binderPessoa;
+    private BeanValidationBinder<Contato> binderContato;
 
     VerticalLayout verticalLayoutContato;
+    private Pessoa pessoa;
 
-    public AgendaTelefônicaView() throws SQLException {
+    private final PessoaService pessoaService;
+
+    public AgendaTelefônicaView(PessoaService pessoaService) throws SQLException {
+        this.pessoaService = pessoaService;
         addClassNames("agenda-telefônica-view", "flex", "flex-col", "h-full");
         // Create UI
         SplitLayout splitLayout = new SplitLayout();
@@ -82,7 +76,7 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
         // Configure Grid
         grid.addColumn("nome").setAutoWidth(true);
         grid.addColumn("sobrenome").setAutoWidth(true);
-        grid.addColumn("data_nascimento").setAutoWidth(true);
+        grid.addColumn("dataNascimento").setAutoWidth(true);
         grid.addColumn("parentesco").setAutoWidth(true);
         grid.addThemeVariants(GridVariant.LUMO_NO_BORDER);
         grid.setHeightFull();
@@ -91,51 +85,49 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
                 UI.getCurrent().navigate(String.format(PESSOA_EDIT_ROUTE_TEMPLATE, event.getValue().getId()));
-                PessoaDao pessoaDao = new PessoaDao();
                 removerCamposContatos();
-                List<Integer> listContatos = pessoaDao.getContatos(event.getValue().getId());
-                for (Integer contatos:listContatos){
-                    verticalLayoutContato.add(inserirCampos(contatos.toString()));
-                }
-
+                Pessoa pessoa = pessoaService.getPessoaID(event.getValue().getId());
+                inserirCampoContatoAutomatico(pessoa);
             } else {
-                removerCamposContatos();
                 clearForm();
+                removerCamposContatos();
                 UI.getCurrent().navigate(AgendaTelefônicaView.class);
             }
         });
 
         // Configure Form
-        binder = new BeanValidationBinder<>(Pessoa.class);
+        binderPessoa = new BeanValidationBinder<>(Pessoa.class);
 
         // Bind fields. This where you'd define e.g. validation rules
+        binderPessoa.bindInstanceFields(this);
 
-        binder.bindInstanceFields(this);
-        binder.forField(nome)
+        binderPessoa.forField(nome)
                 .asRequired()
-                .withValidator(e -> e.matches("[a-zA-Z]{" + nome.getValue().length()+ "}"),"Apenas letras devem ser digitadas no campo acima")
-                .bind(Pessoa::getNome,Pessoa::setNome);
+                .withValidator(e -> e.matches("[a-zA-Zà-úÀ-Ú]{3,20}"),
+                        "O campo acima só permite de 3 a 20 caracteres, não pode conter números e espaço vazio.")
+                .bind(Pessoa::getNome, Pessoa::setNome);
 
-        binder.forField(sobrenome)
+        binderPessoa.forField(sobrenome)
                 .asRequired()
-                .withValidator(e -> e.matches("[a-zA-Z]{" + sobrenome.getValue().length()+ "}"),"Apenas letras devem ser digitadas no campo acima")
-                .bind(Pessoa::getSobrenome,Pessoa::setSobrenome);
+                .withValidator(e -> e.matches("[a-zA-Zà-úÀ-Ú ]{3,35}"),
+                        "O campo acima só permite de 3 a 35 caracteres e não pode conter letras.")
+                .bind(Pessoa::getSobrenome, Pessoa::setSobrenome);
 
-        binder.forField(data_nascimento)
+        binderPessoa.forField(dataNascimento)
                 .asRequired()
-                .withValidator(e -> e.isBefore(LocalDate.now()), "Coloque uma data valida")
-                .bind(Pessoa::getData_nascimento,Pessoa::setData_nascimento);
+                .withValidator(e -> e.isBefore(LocalDate.now()),
+                        "Coloque apenas datas inferiores a "
+                                + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                .bind(Pessoa::getDataNascimento, Pessoa::setDataNascimento);
 
-
-        binder.forField(parentesco)
+        binderPessoa.forField(parentesco)
                 .asRequired()
-                .withValidator(e -> e.matches("[a-zA-Z]{" + parentesco.getValue().length()+ "}"),"Apenas letras devem ser digitadas no campo acima")
-                .bind(Pessoa::getSobrenome,Pessoa::setSobrenome);
+                .withValidator(e -> e.matches("[a-zA-Zà-úÀ-Ú ]{3,25}"),
+                        "O campo acima só permite de 3 a 25 caracteres, não pode conter letras e espeços vazios.")
+                .bind(Pessoa::getParentesco, Pessoa::setParentesco);;
 
-
-
+        //Buttons
         cancel.addClickListener(e -> {
-            clearForm();
             removerCamposContatos();
             popularGrid();
         });
@@ -146,48 +138,39 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
                 return;
             }
 
-            PessoaDao dao = new PessoaDao();
-
-            if(dao.deleteContato(pessoa) && dao.delete(pessoa)){
+            if(pessoaService.deletar(pessoa)){
                 Notification.show("Deletado");
-                System.out.println("Deletado");
             }else{
                 Notification.show("Não Deletado");
-                System.out.println("Não Deletado");
             }
-            clearForm();
             removerCamposContatos();
             popularGrid();
         });
 
         save.addClickListener(e -> {
-            if (binder.validate().isOk()){
+            if (binderPessoa.validate().isOk()){
                 try {
                     if (this.pessoa == null) {
                         this.pessoa = new Pessoa();
                     }
 
-                    binder.writeBean(this.pessoa);
-
-                    PessoaDao dao = new PessoaDao();
+                    binderPessoa.writeBean(this.pessoa);
 
                     if(pessoa.getId() == null){
-                        if(dao.add(pessoa) && dao.addContato(getListContatos())){
+                        pessoa.setContato(getListContatos(pessoa));
+                        if(pessoaService.salvar(pessoa) ){
                             Notification.show("Cadastrado");
-                            System.out.println("Cadastrado");
                             removerCamposContatos();
                         }else{
                             Notification.show("Não Cadastrado");
-                            System.out.println("Não Cadastrado");
                         }
                     }else{
-                        if(dao.update(pessoa) && dao.updateContato(pessoa.getId(), getListContatos())){
+                        pessoa.setContato(getListContatos(pessoa));
+                        if(pessoaService.salvar(pessoa)){
                             Notification.show("Alterado");
-                            System.out.println("Alterado");
                             removerCamposContatos();
                         }else{
                             Notification.show("Não Alterado");
-                            System.out.println("Não Alterado");
                         }
                     }
                     UI.getCurrent().navigate(AgendaTelefônicaView.class);
@@ -198,25 +181,25 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
             }else{
                 Notification.show("Preencha os campos corretamente");
             }
-
-
         });
         popularGrid();
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-        Optional<Integer> pessoaId = event.getRouteParameters().getInteger(PESSOA_ID);
-        PessoaDao pessoaDao = new PessoaDao();
+        Optional<java.lang.Integer> pessoaId = event.getRouteParameters().getInteger(PESSOA_ID);
         if (pessoaId.isPresent()) {
-            Optional<Pessoa> pessoaFromBackend = pessoaDao.getIdPessoa(pessoaId.get());
-            if (pessoaFromBackend.isPresent()) {
-                populateForm(pessoaFromBackend.get());
-            } else {
+            Pessoa pessoaFromBackend = pessoaService.getPessoaID(pessoaId.get());
+
+            if (pessoaFromBackend != null){
+                populateForm(pessoaFromBackend);
+            }
+            else {
                 Notification.show(String.format("The requested pessoa was not found, ID = %d", pessoaId.get()), 3000,
                         Notification.Position.BOTTOM_START);
                 // when a row is selected but the data is no longer available,
                 // refresh grid
+                clearForm();
                 popularGrid();
                 event.forwardTo(AgendaTelefônicaView.class);
             }
@@ -235,10 +218,10 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
         FormLayout formLayout = new FormLayout();
         nome = new TextField("Nome");
         sobrenome = new TextField("Sobrenome");
-        data_nascimento = new DatePicker("Data_nascimento");
+        dataNascimento = new DatePicker("Data_nascimento");
         parentesco = new TextField("Parentesco");
 
-        Component[] fields = new Component[]{nome, sobrenome, data_nascimento, parentesco};
+        Component[] fields = new Component[]{nome, sobrenome, dataNascimento, parentesco};
 
         for (Component field : fields) {
             ((HasStyle) field).addClassName("full-width");
@@ -251,7 +234,7 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
 
 
         Button addNumero = new Button("Adicionar número");
-        addNumero.addClickListener(e -> verticalLayoutContato.add(inserirCampos(null)));
+        addNumero.addClickListener(e -> verticalLayoutContato.add(inserirCampoContatoManual("")));
 
         Label labelContato = new Label();
         labelContato.add("Contato(s)");
@@ -264,26 +247,32 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
         splitLayout.addToSecondary(editorLayoutDiv);
     }
 
-    public Component inserirCampos(String text){
+    public void inserirCampoContatoAutomatico(Pessoa pessoa){
+        for (Contato numero: pessoa.getContato()){
+            verticalLayoutContato.add(inserirCampoContatoManual(numero.getContato().toString()));
+        }
+    }
+
+    public Component inserirCampoContatoManual(String text){
         HorizontalLayout horizontalLayout = new HorizontalLayout();
         TextField textField = new TextField();
         Button button = new Button("x");
         textField.setWidth(100, Unit.PERCENTAGE);
         button.setWidth(40, Unit.PIXELS);
+        textField.setValue(text);
 
-        if(text != null){
-            textField.setValue(text);
-        }
-
-        binder.forField(textField)
+        binderContato = new BeanValidationBinder<>(Contato.class);
+        binderPessoa.bindInstanceFields(this);
+        binderContato.forField(textField)
                 .asRequired()
-                .withValidator(contato -> contato.matches("[0-9]{"+textField.getValue().length()+"}"), "O contado teve conter apenas números")
-                .bind(Pessoa::getContato,Pessoa::setContato);
+                .withConverter(new StringToIntegerConverter(
+                        "O campo acima deve conter apenas números e não deve ter espaços vazios."))
+                .bind(Contato::getContato, Contato::setContato);
 
         button.addThemeVariants(ButtonVariant.LUMO_ERROR);
         button.addClickListener(e -> horizontalLayout.removeAll());
 
-        horizontalLayout.add(textField,button);
+        horizontalLayout.add(textField, button);
         return horizontalLayout;
     }
 
@@ -310,22 +299,22 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
         populateForm(null);
     }
 
-    private List<String> getListContatos(){
+    private List<Contato> getListContatos(Pessoa pessoa){
         List<Component> b = verticalLayoutContato.getChildren()
                 .filter(component -> component instanceof HorizontalLayout)
                 .flatMap(Component::getChildren)
                 .collect(Collectors.toList());
 
-        List<String> listContatos = b.stream()
+        List<String> listString = b.stream()
                 .filter(component -> component instanceof TextField)
                 .map(c -> ((TextField) c).getValue())
                 .collect(Collectors.toList());
-        return listContatos;
-    }
 
-    private void populateForm(Pessoa value) {
-        this.pessoa = value;
-        binder.readBean(this.pessoa);
+
+        List<Contato> listContatos = listString.stream()
+                .map(c -> new Contato(java.lang.Integer.parseInt(c)))
+                .collect(Collectors.toList());
+        return listContatos;
     }
 
     private void removerCamposContatos(){
@@ -333,20 +322,13 @@ public class AgendaTelefônicaView extends Div implements BeforeEnterObserver{
     }
 
     private void popularGrid(){
-        PessoaDao dao = new PessoaDao();
-        List<Pessoa> pessoas = dao.GetlList();
         clearForm();
+        List<Pessoa> pessoas = pessoaService.listarPessoas();
         grid.setItems(pessoas);
     }
 
-    private boolean validaNome(String nome){
-        Pattern pattern = Pattern.compile("[0-9]");
-        Matcher matcher = pattern.matcher(nome);
-        while (matcher.find()){
-            if (matcher.matches()){
-                return true;
-            }
-        }
-        return false;
+    private void populateForm(Pessoa value) {
+        this.pessoa = value;
+        binderPessoa.readBean(this.pessoa);
     }
 }
